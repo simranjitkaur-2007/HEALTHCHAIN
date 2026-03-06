@@ -1,0 +1,20 @@
+# NEVER commit these files — they contain secret API keys!
+.env
+*.env
+
+# Node.js
+node_modules/
+npm-debug.log*
+
+# Hardhat compilation output
+blockchain/artifacts/
+blockchain/cache/
+blockchain/.openzeppelin/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+*.swp
