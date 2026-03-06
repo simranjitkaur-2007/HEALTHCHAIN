@@ -1,25 +1,31 @@
 // server.js
-// ==========================================
-// WHY: This is the entry point for the entire backend.
-// It wires together Express, middleware, and all route handlers.
-// ==========================================
-
-require('dotenv').config(); // Load .env variables FIRST
+require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
 const app = express();
 
-// ---- MIDDLEWARE ----
-// CORS: Allow requests from the frontend (Live Server on port 5500)
+// ---- CORS: Allow all localhost origins ----
 app.use(cors({
-  origin: ['http://localhost:5500', 'http://127.0.0.1:5500'],
-  methods: ['GET','POST','PUT','DELETE'],
-  allowedHeaders: ['Content-Type','Authorization']
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    // Allow any localhost or 127.0.0.1 port
+    if (
+      origin.match(/^http:\/\/localhost(:\d+)?$/) ||
+      origin.match(/^http:\/\/127\.0\.0\.1(:\d+)?$/)
+    ) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 
-app.use(express.json()); // Parse JSON request bodies
-app.use(express.urlencoded({ extended: true })); // Parse form data
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // ---- HEALTH CHECK ----
 app.get('/health', (req, res) => {
@@ -40,10 +46,7 @@ app.get('/health', (req, res) => {
 const authMiddleware = require('./middlewares/auth');
 const roleMiddleware = require('./middlewares/role');
 
-// Public routes (no login required)
 app.use('/api/auth', require('./routes/auth'));
-
-// Protected routes (JWT required + role check)
 app.use('/api/patient', authMiddleware, roleMiddleware('patient'), require('./routes/patient'));
 app.use('/api/hospital', authMiddleware, roleMiddleware('hospital'), require('./routes/hospital'));
 app.use('/api/insurer', authMiddleware, roleMiddleware('insurer'), require('./routes/insurer'));
@@ -77,4 +80,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = app; // for testing with supertest
+module.exports = app;
