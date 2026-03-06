@@ -8,6 +8,8 @@
 const supabase = require('../config/supabase');
 const aiService = require('../services/aiService');
 const blockchainService = require('../services/blockchainService');
+const ipfsService = require('../services/ipfsService');
+const encryptionService = require('../services/encryptionService');
 
 // GET /api/insurer/claims
 async function getClaims(req, res) {
@@ -22,7 +24,7 @@ async function getClaims(req, res) {
         treatments (
           id, diagnosis, doctor_name, hospital_name,
           admission_date, discharge_date, amount_spent,
-          icd_codes, blockchain_tx_hash
+          icd_codes, blockchain_tx_hash, prescription_cid, invoice_cid
         ),
         users!claims_patient_unique_id_fkey (
           name, age, insurance_policy_id
@@ -64,6 +66,54 @@ async function getClaimDetail(req, res) {
     if (error || !claim) return res.status(404).json({ error: 'Claim not found.' });
 
     res.json(claim);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// GET /api/insurer/treatments/:id/download/:type
+// WHY: Insurers need to verify treatment documents (prescription/invoice) stored on IPFS
+// to make informed approve/reject decisions. They access via claim ownership check.
+async function downloadTreatmentFile(req, res) {
+  try {
+    const { id: treatmentId, type } = req.params;
+    const insurerId = req.user.uniqueId;
+
+    // Verify insurer has a claim linked to this treatment
+    const { data: claim } = await supabase
+      .from('claims')
+      .select('id')
+      .eq('treatment_id', treatmentId)
+      .eq('insurer_unique_id', insurerId)
+      .limit(1)
+      .single();
+
+    if (!claim) {
+      return res.status(403).json({ error: 'Access denied. No claim for this treatment is assigned to you.' });
+    }
+
+    // Fetch the treatment record
+    const { data: treatment } = await supabase
+      .from('treatments')
+      .select('prescription_cid, invoice_cid')
+      .eq('id', treatmentId)
+      .single();
+
+    if (!treatment) return res.status(404).json({ error: 'Treatment not found.' });
+
+    let cid;
+    if (type === 'prescription') cid = treatment.prescription_cid;
+    else if (type === 'invoice') cid = treatment.invoice_cid;
+    else return res.status(400).json({ error: 'Invalid file type. Use: prescription or invoice' });
+
+    if (!cid) return res.status(404).json({ error: 'File not uploaded for this treatment.' });
+
+    const encryptedBuffer = await ipfsService.fetchFromIPFS(cid);
+    const decrypted = encryptionService.decrypt(encryptedBuffer, process.env.ENCRYPTION_KEY);
+
+    res.set('Content-Disposition', `attachment; filename="${type}_${treatmentId}.pdf"`);
+    res.set('Content-Type', 'application/pdf');
+    res.send(decrypted);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -168,4 +218,4 @@ async function getStats(req, res) {
   }
 }
 
-module.exports = { getClaims, getClaimDetail, resolveClaim, getStats };
+module.exports = { getClaims, getClaimDetail, downloadTreatmentFile, resolveClaim, getStats };

@@ -575,7 +575,15 @@
       <input type="date" id="upload-discharge" class="form-input">
       <label class="form-label">Amount Spent (₹)</label>
       <input type="number" id="upload-amount" class="form-input" placeholder="e.g. 15000">
-      <button class="btn-primary green" id="btn-upload" onclick="doUploadTreatment()">Upload to Blockchain</button>
+      <label class="form-label">Prescription PDF <span style="color:var(--text2);font-weight:400;text-transform:none;font-size:11px;">(optional — stored on IPFS)</span></label>
+      <input type="file" id="upload-prescription" class="form-input" accept=".pdf,application/pdf" style="padding:9px 15px;cursor:pointer;">
+      <label class="form-label">Invoice PDF <span style="color:var(--text2);font-weight:400;text-transform:none;font-size:11px;">(optional — stored on IPFS)</span></label>
+      <input type="file" id="upload-invoice" class="form-input" accept=".pdf,application/pdf" style="padding:9px 15px;cursor:pointer;">
+      <label class="form-label">Lab Reports <span style="color:var(--text2);font-weight:400;text-transform:none;font-size:11px;">(optional — up to 5 PDFs)</span></label>
+      <input type="file" id="upload-lab-reports" class="form-input" accept=".pdf,application/pdf" multiple style="padding:9px 15px;cursor:pointer;">
+      <label class="form-label">Medical Photos <span style="color:var(--text2);font-weight:400;text-transform:none;font-size:11px;">(optional — up to 5 images)</span></label>
+      <input type="file" id="upload-photos" class="form-input" accept="image/*" multiple style="padding:9px 15px;cursor:pointer;">
+      <button class="btn-primary green" id="btn-upload" onclick="doUploadTreatment()">Upload to Blockchain + IPFS</button>
     </div>
   </div>
 </div>
@@ -1098,6 +1106,8 @@ function treatmentCardHTML(t) {
     </div>
     <div class="treatment-actions">
       <button class="action-btn green" onclick="openClaimModal('${t.id}', ${t.amount_spent||0})">Apply for Claim</button>
+      ${t.prescription_cid && !t.prescription_cid.startsWith('MOCK') ? `<button class="action-btn blue" onclick="downloadTreatmentFile('${t.id}','prescription')">⬇ Prescription</button>` : ''}
+      ${t.invoice_cid && !t.invoice_cid.startsWith('MOCK') ? `<button class="action-btn blue" onclick="downloadTreatmentFile('${t.id}','invoice')">⬇ Invoice</button>` : ''}
       ${txLink}
     </div>
   </div>`;
@@ -1236,23 +1246,56 @@ async function doUploadTreatment() {
   }
 
   const btn = document.getElementById('btn-upload');
-  btn.innerHTML = '<span class="spinner"></span> Uploading...';
+  btn.innerHTML = '<span class="spinner"></span> Uploading to IPFS...';
   btn.disabled = true;
 
   try {
-    const data = await apiCall('POST', '/hospital/upload-treatment', {
-      patientUniqueId, diagnosis, doctorName, hospitalName,
-      icdCodes: icdCodes ? icdCodes.split(',').map(s=>s.trim()).filter(Boolean) : [],
-      admissionDate, dischargeDate, amountSpent
+    // Build FormData to send files + text fields together
+    const formData = new FormData();
+    formData.append('patientUniqueId', patientUniqueId);
+    formData.append('diagnosis', diagnosis);
+    formData.append('doctorName', doctorName);
+    formData.append('hospitalName', hospitalName);
+    formData.append('admissionDate', admissionDate);
+    formData.append('dischargeDate', dischargeDate);
+    formData.append('amountSpent', amountSpent);
+    if (icdCodes) {
+      icdCodes.split(',').map(s => s.trim()).filter(Boolean).forEach(code => formData.append('icdCodes', code));
+    }
+
+    // Attach files if selected
+    const prescriptionFile = document.getElementById('upload-prescription').files[0];
+    if (prescriptionFile) formData.append('prescription', prescriptionFile);
+
+    const invoiceFile = document.getElementById('upload-invoice').files[0];
+    if (invoiceFile) formData.append('invoice', invoiceFile);
+
+    const labFiles = document.getElementById('upload-lab-reports').files;
+    for (const f of labFiles) formData.append('labReports', f);
+
+    const photoFiles = document.getElementById('upload-photos').files;
+    for (const f of photoFiles) formData.append('photos', f);
+
+    // Use fetch directly (not apiCall) since we need multipart/form-data
+    const res = await fetch(API_BASE + '/hospital/upload-treatment', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + authToken },
+      // Do NOT set Content-Type — browser sets it with boundary automatically
+      body: formData
     });
-    showToast('Treatment record uploaded! TX: ' + (data.txHash||'').slice(0,20), 'success');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+
+    const fileMsg = prescriptionFile || invoiceFile ? ' Files stored on IPFS.' : '';
+    showToast('Treatment uploaded! TX: ' + (data.txHash||'').slice(0,20) + fileMsg, 'success');
     closeModal('modal-upload');
     ['upload-patient-id','upload-diagnosis','upload-doctor','upload-hospital-name','upload-icd','upload-admission','upload-discharge','upload-amount'].forEach(id => document.getElementById(id).value = '');
+    ['upload-prescription','upload-invoice','upload-lab-reports','upload-photos'].forEach(id => document.getElementById(id).value = '');
     switchTab('overview', document.querySelector('.sidebar-item'));
   } catch (err) {
     showToast(err.message, 'error');
   } finally {
-    btn.innerHTML = 'Upload to Blockchain';
+    btn.innerHTML = 'Upload to Blockchain + IPFS';
     btn.disabled = false;
   }
 }
@@ -1346,6 +1389,14 @@ async function viewClaimDetail(claimId) {
         ${infoRow('Period', fmtDate(t.admission_date)+' → '+fmtDate(t.discharge_date))}
         ${infoRow('Amount Spent', '₹'+(t.amount_spent||0).toLocaleString())}
         ${t.blockchain_tx_hash ? infoRow('Blockchain TX', `<span class="hash-badge">⛓ ${t.blockchain_tx_hash}</span>`) : ''}
+        ${(t.prescription_cid && !t.prescription_cid.startsWith('MOCK')) || (t.invoice_cid && !t.invoice_cid.startsWith('MOCK')) ? `
+        <div style="padding:11px 0;border-bottom:1px solid var(--border);">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">IPFS Documents</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            ${t.prescription_cid && !t.prescription_cid.startsWith('MOCK') ? `<button class="action-btn blue" onclick="downloadInsurerFile('${claim.treatment_id}','prescription')">⬇ Prescription PDF</button>` : ''}
+            ${t.invoice_cid && !t.invoice_cid.startsWith('MOCK') ? `<button class="action-btn blue" onclick="downloadInsurerFile('${claim.treatment_id}','invoice')">⬇ Invoice PDF</button>` : ''}
+          </div>
+        </div>` : ''}
       </div>` : ''}
       ${claim.ai_explanation ? `
       <div class="modal-section-title">AI Analysis / Patient Message</div>
@@ -1353,6 +1404,58 @@ async function viewClaimDetail(claimId) {
         💬 ${claim.ai_explanation}
       </div>` : ''}`;
     openModal('modal-claim-detail');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ─── DOWNLOAD TREATMENT FILES (Patient) ──────────────────────────────────────
+async function downloadTreatmentFile(treatmentId, type) {
+  try {
+    showToast('Fetching file from IPFS...', 'info');
+    const res = await fetch(`${API_BASE}/patient/treatments/${treatmentId}/download/${type}`, {
+      headers: { 'Authorization': 'Bearer ' + authToken }
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Download failed');
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${type}_${treatmentId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast(`${type.charAt(0).toUpperCase()+type.slice(1)} downloaded successfully.`, 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ─── DOWNLOAD TREATMENT FILES (Insurer) ──────────────────────────────────────
+async function downloadInsurerFile(treatmentId, type) {
+  try {
+    showToast('Fetching file from IPFS...', 'info');
+    const res = await fetch(`${API_BASE}/insurer/treatments/${treatmentId}/download/${type}`, {
+      headers: { 'Authorization': 'Bearer ' + authToken }
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Download failed');
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${type}_${treatmentId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast(`${type.charAt(0).toUpperCase()+type.slice(1)} downloaded successfully.`, 'success');
   } catch (err) {
     showToast(err.message, 'error');
   }
