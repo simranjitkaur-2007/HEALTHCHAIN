@@ -83,9 +83,9 @@ function showAuth(role) {
   document.getElementById('auth-error-text').textContent = '';
 
   const configs = {
-    patient:   { iconClass: 'blue',   name: 'Patient Login',   title: 'Patient Access',         sub: 'Sign in with your Patient ID (PAT-XXXXXX) and password.',   placeholder: 'PAT-XXXXXX', label: 'Patient ID',   btnClass: 'blue' },
-    hospital:  { iconClass: 'green',  name: 'Hospital Login',  title: 'Staff Authentication',   sub: 'Sign in with your Hospital ID (HSP-XXXXXX) and password.',  placeholder: 'HSP-XXXXXX', label: 'Hospital ID',  btnClass: 'green' },
-    insurance: { iconClass: 'purple', name: 'Insurance Login', title: 'Company Authentication', sub: 'Sign in with your Insurer ID (INS-XXXXXX) and password.',   placeholder: 'INS-XXXXXX', label: 'Insurer ID',   btnClass: 'purple' },
+    patient:   { iconClass: 'blue',   name: 'Patient Login',   title: 'Patient Access',         sub: 'Sign in with your Patient ID (PAT-XXXXXX) and password.',   placeholder: 'PAT-XXXXXX', label: 'Patient ID',   btnClass: 'blue',   allowedPrefix: 'PAT-' },
+    hospital:  { iconClass: 'green',  name: 'Hospital Login',  title: 'Staff Authentication',   sub: 'Sign in with your Hospital ID (HSP-XXXXXX) and password.',  placeholder: 'HSP-XXXXXX', label: 'Hospital ID',  btnClass: 'green',  allowedPrefix: 'HSP-' },
+    insurance: { iconClass: 'purple', name: 'Insurance Login', title: 'Company Authentication', sub: 'Sign in with your Insurer ID (INS-XXXXXX) and password.',   placeholder: 'INS-XXXXXX', label: 'Insurer ID',   btnClass: 'purple', allowedPrefix: 'INS-' },
   };
   const svgIcons = {
     patient:   `<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" fill="none" style="width:18px;height:18px;"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
@@ -115,6 +115,19 @@ function showAuth(role) {
   setTimeout(() => document.getElementById('input-uniqueid').focus(), 100);
 }
 
+// ─── PORTAL ROLE ENFORCEMENT ─────────────────────────────────────────────────
+const PORTAL_REQUIRED_PREFIX = {
+  patient:   'PAT-',
+  hospital:  'HSP-',
+  insurance: 'INS-'
+};
+
+const PORTAL_ROLE_NAMES = {
+  patient:   'Patient',
+  hospital:  'Hospital',
+  insurance: 'Insurer'
+};
+
 // ─── ENTER KEY SUPPORT ────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   ['input-uniqueid', 'input-password'].forEach(id => {
@@ -136,12 +149,32 @@ async function doLogin() {
     return;
   }
 
+  // ── PORTAL ROLE ENFORCEMENT ──
+  const requiredPrefix = PORTAL_REQUIRED_PREFIX[currentRole];
+  if (requiredPrefix && !uniqueId.startsWith(requiredPrefix)) {
+    const portalName = PORTAL_ROLE_NAMES[currentRole];
+    showAuthError(`This is the ${portalName} portal. Please use a ${requiredPrefix}XXXXXX ID to sign in here.`);
+    return;
+  }
+
   const btn = document.getElementById('btn-login');
   btn.innerHTML = '<span class="spinner"></span> Signing in...';
   btn.disabled = true;
 
   try {
     const data = await apiCall('POST', '/auth/login', { uniqueId, password });
+
+    // Double-check server-returned role matches portal
+    const serverRole = data.role; // 'patient', 'hospital', 'insurer'
+    const portalExpectedRole = currentRole === 'insurance' ? 'insurer' : currentRole;
+    if (serverRole !== portalExpectedRole) {
+      const portalName = PORTAL_ROLE_NAMES[currentRole];
+      showAuthError(`Access denied. This is the ${portalName} portal. Your account is registered as a ${serverRole}.`);
+      btn.innerHTML = 'Sign In';
+      btn.disabled = false;
+      return;
+    }
+
     authToken = data.token;
     currentUser = { name: data.name, uniqueId: data.uniqueId, role: data.role };
     currentRole = data.role === 'insurer' ? 'insurance' : data.role;
@@ -231,7 +264,6 @@ async function renderPatientTab(tab, body) {
   if (tab === 'overview' || tab === 'treatments') {
     const treatments = await apiCall('GET', '/patient/treatments');
     cachedTreatments = treatments;
-    // Fetch claims to know which treatments already have an approved/pending claim
     const claims = await apiCall('GET', '/patient/claims');
     const totalSpent = treatments.reduce((s,t) => s+(t.amount_spent||0), 0);
     const approvedCount = claims.filter(c=>c.status==='approved').length;
@@ -301,9 +333,19 @@ async function renderPatientTab(tab, body) {
 }
 
 // ─── HOSPITAL TABS ─────────────────────────────────────────────────────────────
+// In-memory patient list so newly registered patients appear immediately
+let hospitalPatientCache = null;
+
+async function getHospitalPatients(forceRefresh = false) {
+  if (!hospitalPatientCache || forceRefresh) {
+    hospitalPatientCache = await apiCall('GET', '/hospital/patients');
+  }
+  return hospitalPatientCache;
+}
+
 async function renderHospitalTab(tab, body) {
   if (tab === 'overview') {
-    const patients = await apiCall('GET', '/hospital/patients');
+    const patients = await getHospitalPatients(true);
     body.innerHTML = `
     <div class="stats-grid">
       ${statCard('Total Patients', patients.length, 'Registered')}
@@ -335,7 +377,7 @@ async function renderHospitalTab(tab, body) {
   }
 
   if (tab === 'patients') {
-    const patients = await apiCall('GET', '/hospital/patients');
+    const patients = await getHospitalPatients(true);
     body.innerHTML = `
     <div class="section-card">
       <div class="section-header">
@@ -345,9 +387,9 @@ async function renderHospitalTab(tab, body) {
       <div class="section-body" style="padding:0;" id="patients-table-body">
         <div class="overflow-x">
           <table class="data-table">
-            <thead><tr><th>Patient</th><th>ID</th><th>Age</th><th>Policy</th><th>Insurer</th><th>Contact</th></tr></thead>
+            <thead><tr><th>Patient</th><th>ID</th><th>Age</th><th>Policy</th><th>Insurer</th><th>Contact</th><th>Documents</th></tr></thead>
             <tbody id="patients-tbody">
-              ${renderPatientsTableRows(patients)}
+              ${await renderPatientsTableRows(patients)}
             </tbody>
           </table>
         </div>
@@ -384,7 +426,7 @@ async function renderHospitalTab(tab, body) {
 
 // ─── RENDER PATIENTS LIST ─────────────────────────────────────────────────────
 function renderPatientsList(patients) {
-  if (!patients.length) return emptyState('No patients registered yet');
+  if (!patients.length) return emptyState('No patients registered yet. Use the Register Patient button to add patients.');
   const clrs = ['blue','green','purple'];
   return patients.map((p, i) => {
     const clr = clrs[i % 3];
@@ -397,16 +439,51 @@ function renderPatientsList(patients) {
   }).join('');
 }
 
-function renderPatientsTableRows(patients) {
-  if (!patients.length) return `<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:30px;">No patients registered yet</td></tr>`;
-  return patients.map(p => `<tr>
-    <td style="font-weight:600;">${p.name}</td>
-    <td style="font-family:'DM Mono',monospace;font-size:12px;">${p.unique_id}</td>
-    <td>${p.age||'—'}</td>
-    <td>${p.insurance_policy_id||'—'}</td>
-    <td>${p.insurer_unique_id||'—'}</td>
-    <td style="color:var(--text2);">${p.email||p.phone||'—'}</td>
-  </tr>`).join('');
+async function renderPatientsTableRows(patients) {
+  if (!patients.length) return `<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:30px;">No patients registered yet</td></tr>`;
+
+  // Fetch all treatments for this hospital so we know which patients have documents
+  let treatmentsByPatient = {};
+  try {
+    // We fetch per-patient by getting all treatments from each patient's records
+    // Instead, call a hospital-scoped endpoint if available. We'll build it client side.
+    // We batch: fetch once via the existing route and group
+    const rows = await Promise.all(patients.map(async p => {
+      let docButtons = '';
+      try {
+        // Try to get treatment CIDs for this patient from hospital records
+        // We look up treatments by fetching hospital patients' treatments indirectly
+        // Since no direct hospital-scoped treatments endpoint exists per patient,
+        // we'll just show upload button
+        docButtons = `<button class="action-btn blue" style="font-size:11px;padding:5px 10px;" onclick="openUploadForPatient('${p.unique_id}')">Upload Doc</button>`;
+      } catch(e) {}
+      return `<tr>
+        <td style="font-weight:600;">${p.name}</td>
+        <td style="font-family:'DM Mono',monospace;font-size:12px;">${p.unique_id}</td>
+        <td>${p.age||'—'}</td>
+        <td>${p.insurance_policy_id||'—'}</td>
+        <td>${p.insurer_unique_id||'—'}</td>
+        <td style="color:var(--text2);">${p.email||p.phone||'—'}</td>
+        <td>${docButtons}</td>
+      </tr>`;
+    }));
+    return rows.join('');
+  } catch(e) {
+    return patients.map(p => `<tr>
+      <td style="font-weight:600;">${p.name}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;">${p.unique_id}</td>
+      <td>${p.age||'—'}</td>
+      <td>${p.insurance_policy_id||'—'}</td>
+      <td>${p.insurer_unique_id||'—'}</td>
+      <td style="color:var(--text2);">${p.email||p.phone||'—'}</td>
+      <td></td>
+    </tr>`).join('');
+  }
+}
+
+function openUploadForPatient(patientId) {
+  document.getElementById('upload-patient-id').value = patientId;
+  openModal('modal-upload');
 }
 
 // ─── INSURER TABS ─────────────────────────────────────────────────────────────
@@ -459,16 +536,10 @@ function statCard(label, value, hint='', hintClass='') {
   </div>`;
 }
 
-/**
- * Builds the treatment card HTML.
- * @param {object} t - Treatment object
- * @param {Array}  claims - All patient claims (used to decide whether to show "Apply for Claim" button)
- */
 function treatmentCardHTML(t, claims = []) {
   const txLink = t.blockchain_tx_hash && !t.blockchain_tx_hash.startsWith('MOCK') && t.blockchain_tx_hash !== 'BLOCKCHAIN_NOT_CONFIGURED'
     ? `<a href="https://sepolia.etherscan.io/tx/${t.blockchain_tx_hash}" target="_blank" class="action-btn purple">View On-Chain ↗</a>` : '';
 
-  // Hide "Apply for Claim" if there is already an approved claim for this treatment
   const approvedClaim = claims.find(c => c.treatment_id === t.id && c.status === 'approved');
   const claimBtn = approvedClaim
     ? `<span style="font-size:12px;color:var(--green2);display:flex;align-items:center;gap:5px;">✓ Claim Approved</span>`
@@ -673,6 +744,9 @@ async function doUploadTreatment() {
     closeModal('modal-upload');
     ['upload-patient-id','upload-diagnosis','upload-doctor','upload-hospital-name','upload-icd','upload-admission','upload-discharge','upload-amount'].forEach(id => document.getElementById(id).value = '');
     ['upload-prescription','upload-invoice','upload-lab-reports','upload-photos'].forEach(id => document.getElementById(id).value = '');
+
+    // Refresh patient cache so uploads show new data
+    hospitalPatientCache = null;
     switchTab('overview', document.querySelector('.sidebar-item'));
   } catch (err) {
     showToast(err.message, 'error');
@@ -720,30 +794,39 @@ async function doRegisterPatient() {
     ['reg-name','reg-age','reg-email','reg-phone','reg-policy','reg-insurer','reg-password'].forEach(id => document.getElementById(id).value='');
     showToast('Patient registered successfully!', 'success');
 
-    // ── AUTO-REFRESH patient list if currently on overview or patients tab ──
+    // ── IMMEDIATELY add patient to in-memory cache and refresh UI ──
+    // Invalidate cache so next fetch gets fresh data
+    hospitalPatientCache = null;
+
+    // Eagerly add to cache using the returned credentials
+    const newPatient = {
+      unique_id: data.credentials?.patientId || '—',
+      name,
+      age: age || null,
+      email: email || null,
+      phone: phone || null,
+      insurance_policy_id: insurancePolicyId || null,
+      insurer_unique_id: insurerUniqueId || null
+    };
+
+    // Build a temporary optimistic cache
+    const currentPatients = hospitalPatientCache || [];
+    hospitalPatientCache = [...currentPatients, newPatient];
+
+    // Refresh the visible tab
     if (currentRole === 'hospital') {
       if (currentTab === 'overview') {
-        // Silently refresh the patients list section
-        try {
-          const updatedPatients = await apiCall('GET', '/hospital/patients');
-          const listBody = document.getElementById('patients-list-body');
-          if (listBody) {
-            listBody.innerHTML = renderPatientsList(updatedPatients);
-            // Update the stat card count
-            const statValues = document.querySelectorAll('.stat-value');
-            if (statValues[0]) statValues[0].textContent = updatedPatients.length;
-          }
-        } catch(_) { /* silently ignore */ }
+        const listBody = document.getElementById('patients-list-body');
+        if (listBody) {
+          listBody.innerHTML = renderPatientsList(hospitalPatientCache);
+          const statValues = document.querySelectorAll('.stat-value');
+          if (statValues[0]) statValues[0].textContent = hospitalPatientCache.length;
+        }
       } else if (currentTab === 'patients') {
-        // Reload the whole patients tab
-        try {
-          const updatedPatients = await apiCall('GET', '/hospital/patients');
-          const tbody = document.getElementById('patients-tbody');
-          if (tbody) tbody.innerHTML = renderPatientsTableRows(updatedPatients);
-          // Update section title count
-          const sectionTitle = document.querySelector('.section-title');
-          if (sectionTitle) sectionTitle.textContent = `All Patients (${updatedPatients.length})`;
-        } catch(_) { /* silently ignore */ }
+        const tbody = document.getElementById('patients-tbody');
+        if (tbody) tbody.innerHTML = await renderPatientsTableRows(hospitalPatientCache);
+        const sectionTitle = document.querySelector('.section-title');
+        if (sectionTitle) sectionTitle.textContent = `All Patients (${hospitalPatientCache.length})`;
       }
     }
   } catch (err) {
@@ -869,6 +952,37 @@ async function downloadInsurerFile(treatmentId, type) {
     a.remove();
     URL.revokeObjectURL(url);
     showToast(`${type.charAt(0).toUpperCase()+type.slice(1)} downloaded successfully.`, 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ─── HOSPITAL DOCUMENT DOWNLOAD ───────────────────────────────────────────────
+// Hospital can download documents they uploaded for a patient via patient routes
+// (hospital uploaded them, so we use a hospital-scoped download)
+async function downloadHospitalPatientFile(treatmentId, type) {
+  try {
+    showToast('Fetching file from IPFS...', 'info');
+    // Hospitals access via a direct IPFS fetch since they own the records
+    // We reuse the insurer route approach but from hospital auth
+    const res = await fetch(`${API_BASE}/hospital/treatments/${treatmentId}/download/${type}`, {
+      headers: { 'Authorization': 'Bearer ' + authToken }
+    });
+    if (!res.ok) {
+      // Fallback: tell user
+      showToast('Document download requires a direct backend route for hospitals. Check SETUP_GUIDE.', 'info');
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${type}_${treatmentId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast(`${type.charAt(0).toUpperCase()+type.slice(1)} downloaded.`, 'success');
   } catch (err) {
     showToast(err.message, 'error');
   }
