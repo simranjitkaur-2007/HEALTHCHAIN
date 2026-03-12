@@ -10,15 +10,52 @@
 </head>
 <body>
 
-<!-- Toast Container -->
+<div id="splash-screen" class="splash-container">
+  <canvas id="splash-particles"></canvas>
+
+  <div class="mesh-glow mesh-top-right"></div>
+  <div class="mesh-glow mesh-bottom-left"></div>
+  
+  <div class="splash-content">
+  <h1 class="splash-title">HealthChain</h1>
+  
+  <div id="splash-delayed-content" class="hidden-content">
+    <p class="splash-quote">"Because health data should heal, not harm"</p>
+    <button id="btn-get-started" class="btn-primary blue splash-btn blob-btn">
+      Get Started
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;margin-left:6px;"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      <span class="blob-btn__inner">
+        <span class="blob-btn__blobs">
+          <span class="blob-btn__blob"></span>
+          <span class="blob-btn__blob"></span>
+          <span class="blob-btn__blob"></span>
+          <span class="blob-btn__blob"></span>
+        </span>
+      </span>
+    </button>
+  </div>
+</div>
+
+<!-- Gooey filter for blob button -->
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" style="position:absolute;width:0;height:0;visibility:hidden;">
+  <defs>
+    <filter id="goo">
+      <feGaussianBlur in="SourceGraphic" result="blur" stdDeviation="10"></feGaussianBlur>
+      <feColorMatrix in="blur" mode="matrix"
+        values="1 0 0 0 0
+                0 1 0 0 0
+                0 0 1 0 0
+                0 0 0 21 -7" result="goo"></feColorMatrix>
+      <feBlend in2="goo" in="SourceGraphic" result="mix"></feBlend>
+    </filter>
+  </defs>
+</svg>
+</div>
+
 <div class="toast-container" id="toast-container"></div>
 
-<!-- Animated dots canvas -->
 <canvas id="dots-canvas"></canvas>
 
-<!-- ═══════════════════════════════════════════
-     LANDING PAGE
-═══════════════════════════════════════════ -->
 <div id="page-landing" class="page active">
   <div class="landing-inner">
     <div class="logo-wrap">
@@ -57,9 +94,6 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════
-     AUTH PAGE
-═══════════════════════════════════════════ -->
 <div id="page-auth" class="page">
   <div class="auth-card" id="auth-card">
     <button class="back-btn" onclick="showLanding()">
@@ -82,7 +116,7 @@
       <input type="text" id="input-uniqueid" class="form-input" placeholder="e.g. PAT-123456" autocomplete="username">
       <label class="form-label">Password</label>
       <input type="password" id="input-password" class="form-input" placeholder="••••••••" autocomplete="current-password">
-      <button class="btn-primary blue" id="btn-login" onclick="doLogin()">Sign In</button>
+      <button style="color: white;" id="btn-login" onclick="doLogin()">Sign In</button>
     </div>
 
     <div id="auth-step-verified" style="display:none">
@@ -92,9 +126,6 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════
-     DASHBOARD
-═══════════════════════════════════════════ -->
 <div id="page-dashboard" class="page">
   <nav class="sidebar" id="sidebar">
     <div class="sidebar-logo">
@@ -133,11 +164,6 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════
-     MODALS
-═══════════════════════════════════════════ -->
-
-<!-- Submit Claim Modal -->
 <div class="modal-overlay hidden" id="modal-claim">
   <div class="modal">
     <div class="modal-header">
@@ -158,7 +184,6 @@
   </div>
 </div>
 
-<!-- Upload Treatment Modal -->
 <div class="modal-overlay hidden" id="modal-upload">
   <div class="modal">
     <div class="modal-header">
@@ -195,7 +220,6 @@
   </div>
 </div>
 
-<!-- Register Patient Modal -->
 <div class="modal-overlay hidden" id="modal-register">
   <div class="modal">
     <div class="modal-header">
@@ -222,7 +246,6 @@
   </div>
 </div>
 
-<!-- Claim Detail Modal -->
 <div class="modal-overlay hidden" id="modal-claim-detail">
   <div class="modal">
     <div class="modal-header">
@@ -233,7 +256,6 @@
   </div>
 </div>
 
-<!-- Patient Credentials Modal -->
 <div class="modal-overlay hidden" id="modal-credentials">
   <div class="modal">
     <div class="modal-header">

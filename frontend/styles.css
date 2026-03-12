@@ -1,4 +1,6 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
 
   :root {
     --bg:        #000000;
@@ -155,16 +157,16 @@
   .form-input.purple:focus { background: rgba(29,78,216,0.05); border-color: rgba(29,78,216,0.5); box-shadow: 0 0 0 3px rgba(29,78,216,.1), 0 1px 0 rgba(255,255,255,0.06) inset; }
 
   .btn-primary {
-    width: 100%; padding: 13px; border-radius: 12px; border: none; font-size: 14px; font-weight: 600;
-    font-family: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    width: 100%; padding: 13px; border-radius: 12px; border: none; font-size: 14px; font-weight: 300;
+    font-family: "DM Sans", sans-serif; cursor: pointer; display: flex; align-items: center; justify-content: center;
     gap: 8px; transition: opacity .2s, transform .15s; position: relative;
   }
   .btn-primary:disabled { opacity: .38; cursor: not-allowed; transform: none !important; }
-  .btn-primary.blue  { background: #2563eb; color: #fff; }
+  .btn-primary.blue  { background: #2563eb; color: #2563eb; }
   .btn-primary.blue:not(:disabled):hover  { background: #1d4ed8; }
   .btn-primary.green { background: #059669; color: #fff; }
   .btn-primary.green:not(:disabled):hover { background: #047857; }
-  .btn-primary.purple { background: #1d4ed8; color: #fff; }
+  .btn-primary.purple { background: #1d4ed8; color: #fff; border-color: #2563eb; }
   .btn-primary.purple:not(:disabled):hover { background: #1e40af; }
 
   .verified-banner { background: rgba(16,185,129,.08); backdrop-filter: blur(12px); border: 1px solid rgba(16,185,129,.22); border-top-color: rgba(16,185,129,.35); box-shadow: 0 1px 0 rgba(16,185,129,.1) inset; color: var(--green2); padding: 12px 16px; border-radius: 12px; display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 500; margin-bottom: 14px; }
@@ -403,3 +405,410 @@
   ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 10px; }
+
+/* ═══════════════════════════════════════════
+   SPLASH SCREEN STYLES
+═══════════════════════════════════════════ */
+.splash-container {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  transition: transform 0.9s cubic-bezier(0.77, 0, 0.175, 1);
+  overflow: hidden;
+}
+
+#splash-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1; 
+  pointer-events: auto; 
+}
+
+.mesh-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.mesh-top-right {
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%);
+  top: -20%;
+  right: -10%;
+  animation: drift 8s ease-in-out infinite alternate;
+}
+
+.mesh-bottom-left {
+  width: 60vw;
+  height: 60vw;
+  background: radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%);
+  bottom: -20%;
+  left: -20%;
+  animation: drift 10s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes drift {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-30px, 30px) scale(1.1); }
+}
+
+.splash-content {
+  text-align: center;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none; 
+}
+
+.splash-title {
+  font-family: 'Syne', sans-serif;
+  font-size: clamp(3rem, 8vw, 6rem);
+  font-weight: 800;
+  /* Base gradient */
+  background: linear-gradient(
+    105deg,
+    #ffffff 0%,
+    #60a5fa 30%,
+    #ffffff 50%,
+    #60a5fa 70%,
+    #ffffff 100%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 24px;
+  opacity: 0;
+  /* Layer both animations: fade-in first, then sweep loops forever */
+  animation:
+    titleFadeIn 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards,
+    lightSweep 3.5s linear 1.4s infinite;
+}
+
+@keyframes titleFadeIn {
+  from { opacity: 0; transform: translateY(30px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+/* Sweeps the bright band smoothly from right → left across the text */
+@keyframes lightSweep {
+  0%   { background-position: 150% 0; }
+  100% { background-position: -50% 0; }
+}
+
+.hidden-content {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 1s ease, transform 1s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto; 
+}
+
+.hidden-content.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.splash-quote {
+  font-family: "Playfair Display", serif;
+  font-size: clamp(1rem, 2vw, 1.3rem);
+  color: white;
+  font-style: italic;
+  /* font-weight: 100; */
+  letter-spacing: 0.02em;
+  margin-bottom: 40px;
+}
+
+.splash-btn {
+  width: auto;
+  padding: 16px 36px;
+  font-size: 1.1rem;
+  border-radius: 100px;
+  box-shadow: 0 10px 30px rgba(37, 99, 235, 0.3);
+  transition:
+    background-color 0.35s ease,
+    box-shadow 0.35s ease,
+    color 0.35s ease;
+}
+
+.splash-btn:hover {
+  background-color: #ffffff !important;
+  color: #ffffff !important;
+  box-shadow: 0 15px 40px rgba(37, 99, 235, 0.4);
+}
+
+.splash-container.slide-up {
+  transform: translateY(-100vh);
+}
+
+/* Blob button styles for Get Started */
+.blob-btn {
+  --blob-color: #2563eb;
+  --blob-border-width: 2px;
+  position: relative;
+  z-index: 1;
+  padding: 16px 46px;
+  margin-bottom: 30px;
+  text-transform: uppercase;
+  font-size: 14px;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: "DM Sans", sans-serif;
+  color: #2563eb;
+  transition:
+    color 0.5s ease,
+    background-color 0.4s ease,
+    transform 0.7s cubic-bezier(0.65, 0, 0.35, 1),
+    border-radius 0.7s cubic-bezier(0.65, 0, 0.35, 1),
+    width 0.7s cubic-bezier(0.65, 0, 0.35, 1),
+    height 0.7s cubic-bezier(0.65, 0, 0.35, 1),
+    padding 0.7s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.blob-btn:hover {
+  color: #2563eb;
+}
+
+.blob-btn::before {
+  content: none; /* remove visible border */
+}
+
+.blob-btn::after {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  left: calc(var(--blob-border-width) * 1.5);
+  top: calc(var(--blob-border-width) * 1.5);
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: transparent;
+  transition: all 0.3s 0.2s;
+}
+
+.blob-btn:hover::after {
+  left: 0;
+  top: 0;
+  transition: all 0.3s;
+}
+
+.blob-btn__inner {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  background: #ffffff;
+}
+
+.blob-btn__blobs {
+  position: relative;
+  display: block;
+  height: 100%;
+  filter: url('#goo');
+}
+
+.blob-btn__blob {
+  position: absolute;
+  top: var(--blob-border-width);
+  width: 25%;
+  height: 100%;
+  background: var(--blob-color);
+  border-radius: 100%;
+  transform: translate3d(0,150%,0) scale(1.4);
+  transition: transform 0.45s;
+}
+
+.blob-btn__blob:nth-child(1) {
+  left: 0;
+  transition-delay: 0s;
+}
+
+.blob-btn__blob:nth-child(2) {
+  left: 30%;
+  transition-delay: 0.08s;
+}
+
+.blob-btn__blob:nth-child(3) {
+  left: 60%;
+  transition-delay: 0.16s;
+}
+
+.blob-btn__blob:nth-child(4) {
+  left: 90%;
+  transition-delay: 0.24s;
+}
+
+.blob-btn:hover .blob-btn__blob {
+  transform: translate3d(0,0,0) scale(1.4);
+}
+
+/* Click collapse animation: morph into perfect circle */
+.blob-btn--collapse {
+  width: 56px !important;
+  height: 56px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  pointer-events: none;
+  /* overflow must clip the shrinking text */
+  overflow: hidden;
+}
+
+/* Fade + slide the text content down */
+.blob-btn--collapse .blob-btn__text,
+.blob-btn--collapse > svg {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.blob-btn--collapse .blob-btn__inner {
+  border-radius: 50%;
+  transition: border-radius 0.7s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.blob-btn--collapse .blob-btn__blob {
+  transform: translate3d(0,0,0) scale(1.2);
+}
+
+/* ═══════════════════════════════════════════
+   FEATURE 5: CONTINUOUS GRADIENT ROTATION
+   (replaces hover-only rotation)
+═══════════════════════════════════════════ */
+.mesh-top-right {
+  animation:
+    drift 8s ease-in-out infinite alternate,
+    gradientSpin 14s linear infinite;
+  transform-origin: center center;
+}
+
+.mesh-bottom-left {
+  animation:
+    drift 10s ease-in-out infinite alternate-reverse,
+    gradientSpin 18s linear infinite reverse;
+  transform-origin: center center;
+}
+
+@keyframes gradientSpin {
+  from { --spin-angle: 0deg;   }
+  to   { --spin-angle: 360deg; }
+}
+
+/* Use a separate wrapper rotation that doesn't fight drift */
+@keyframes slowRotate {
+  from { transform: rotate(0deg)   scale(1);   }
+  to   { transform: rotate(360deg) scale(1);   }
+}
+
+/* Override mesh glows with combined drift + rotation */
+.mesh-glow {
+  animation: meshFloat 12s ease-in-out infinite alternate,
+             slowRotate 20s linear infinite;
+}
+
+.mesh-top-right {
+  animation: meshFloat 8s ease-in-out infinite alternate,
+             slowRotate 14s linear infinite;
+}
+
+.mesh-bottom-left {
+  animation: meshFloat 10s ease-in-out infinite alternate-reverse,
+             slowRotate 18s linear infinite reverse;
+}
+
+@keyframes meshFloat {
+  0%   { transform: translate(0, 0)       scale(1);   }
+  50%  { transform: translate(-15px, 20px) scale(1.06); }
+  100% { transform: translate(10px, -15px) scale(0.96); }
+}
+
+
+/* ═══════════════════════════════════════════
+   FEATURE 3 EXTRA: Button text span wrapper
+═══════════════════════════════════════════ */
+.blob-btn__text {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: inherit; /* This ensures it stays blue like the parent */
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+/* ═══════════════════════════════════════════
+   FEATURE 4: GRADIENT SHRINK ON CLICK
+   .splash-container.clicked → mesh glows shrink behind portals
+═══════════════════════════════════════════ */
+.splash-container.clicked .mesh-top-right,
+.splash-container.clicked .mesh-bottom-left {
+  transition: all 0.9s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 30vw !important;
+  height: 30vw !important;
+  opacity: 0.25 !important;
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%) scale(0.6) !important;
+}
+
+
+/* ═══════════════════════════════════════════
+   FEATURE 3: HEADING + QUOTE MOVE UP on click
+═══════════════════════════════════════════ */
+@keyframes slideUp {
+  from { transform: translateY(0);    opacity: 1; }
+  to   { transform: translateY(-60px); opacity: 0; }
+}
+
+.splash-title.clicked,
+.splash-quote.clicked {
+  animation: slideUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+
+/* Feature 6 removed — landing page uses original centered layout */
+
+
+/* ═══════════════════════════════════════════
+   FEATURE 7: LOGIN FORM SLIDE-IN ENTRANCE
+   auth-card enters from the right side + scales up
+═══════════════════════════════════════════ */
+#page-auth.active .auth-card {
+  animation: authSlideIn 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes authSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateX(80px) scale(0.93);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(-6px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}

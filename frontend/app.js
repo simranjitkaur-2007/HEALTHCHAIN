@@ -164,8 +164,7 @@ async function doLogin() {
   try {
     const data = await apiCall('POST', '/auth/login', { uniqueId, password });
 
-    // Double-check server-returned role matches portal
-    const serverRole = data.role; // 'patient', 'hospital', 'insurer'
+    const serverRole = data.role; 
     const portalExpectedRole = currentRole === 'insurance' ? 'insurer' : currentRole;
     if (serverRole !== portalExpectedRole) {
       const portalName = PORTAL_ROLE_NAMES[currentRole];
@@ -333,7 +332,6 @@ async function renderPatientTab(tab, body) {
 }
 
 // ─── HOSPITAL TABS ─────────────────────────────────────────────────────────────
-// In-memory patient list so newly registered patients appear immediately
 let hospitalPatientCache = null;
 
 async function getHospitalPatients(forceRefresh = false) {
@@ -442,19 +440,10 @@ function renderPatientsList(patients) {
 async function renderPatientsTableRows(patients) {
   if (!patients.length) return `<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:30px;">No patients registered yet</td></tr>`;
 
-  // Fetch all treatments for this hospital so we know which patients have documents
-  let treatmentsByPatient = {};
   try {
-    // We fetch per-patient by getting all treatments from each patient's records
-    // Instead, call a hospital-scoped endpoint if available. We'll build it client side.
-    // We batch: fetch once via the existing route and group
     const rows = await Promise.all(patients.map(async p => {
       let docButtons = '';
       try {
-        // Try to get treatment CIDs for this patient from hospital records
-        // We look up treatments by fetching hospital patients' treatments indirectly
-        // Since no direct hospital-scoped treatments endpoint exists per patient,
-        // we'll just show upload button
         docButtons = `<button class="action-btn blue" style="font-size:11px;padding:5px 10px;" onclick="openUploadForPatient('${p.unique_id}')">Upload Doc</button>`;
       } catch(e) {}
       return `<tr>
@@ -745,7 +734,6 @@ async function doUploadTreatment() {
     ['upload-patient-id','upload-diagnosis','upload-doctor','upload-hospital-name','upload-icd','upload-admission','upload-discharge','upload-amount'].forEach(id => document.getElementById(id).value = '');
     ['upload-prescription','upload-invoice','upload-lab-reports','upload-photos'].forEach(id => document.getElementById(id).value = '');
 
-    // Refresh patient cache so uploads show new data
     hospitalPatientCache = null;
     switchTab('overview', document.querySelector('.sidebar-item'));
   } catch (err) {
@@ -776,7 +764,6 @@ async function doRegisterPatient() {
     });
     closeModal('modal-register');
 
-    // Show credentials modal
     document.getElementById('credentials-body').innerHTML = `
       <div style="text-align:center;margin-bottom:20px;">
         <div style="font-size:40px;margin-bottom:10px;">🎉</div>
@@ -790,15 +777,11 @@ async function doRegisterPatient() {
       <p style="color:var(--amber2);font-size:12px;text-align:center;">⚠ Share these credentials securely with the patient. They should change the password on first login.</p>`;
     openModal('modal-credentials');
 
-    // Clear form fields
     ['reg-name','reg-age','reg-email','reg-phone','reg-policy','reg-insurer','reg-password'].forEach(id => document.getElementById(id).value='');
     showToast('Patient registered successfully!', 'success');
 
-    // ── IMMEDIATELY add patient to in-memory cache and refresh UI ──
-    // Invalidate cache so next fetch gets fresh data
     hospitalPatientCache = null;
 
-    // Eagerly add to cache using the returned credentials
     const newPatient = {
       unique_id: data.credentials?.patientId || '—',
       name,
@@ -809,11 +792,9 @@ async function doRegisterPatient() {
       insurer_unique_id: insurerUniqueId || null
     };
 
-    // Build a temporary optimistic cache
     const currentPatients = hospitalPatientCache || [];
     hospitalPatientCache = [...currentPatients, newPatient];
 
-    // Refresh the visible tab
     if (currentRole === 'hospital') {
       if (currentTab === 'overview') {
         const listBody = document.getElementById('patients-list-body');
@@ -958,18 +939,13 @@ async function downloadInsurerFile(treatmentId, type) {
 }
 
 // ─── HOSPITAL DOCUMENT DOWNLOAD ───────────────────────────────────────────────
-// Hospital can download documents they uploaded for a patient via patient routes
-// (hospital uploaded them, so we use a hospital-scoped download)
 async function downloadHospitalPatientFile(treatmentId, type) {
   try {
     showToast('Fetching file from IPFS...', 'info');
-    // Hospitals access via a direct IPFS fetch since they own the records
-    // We reuse the insurer route approach but from hospital auth
     const res = await fetch(`${API_BASE}/hospital/treatments/${treatmentId}/download/${type}`, {
       headers: { 'Authorization': 'Bearer ' + authToken }
     });
     if (!res.ok) {
-      // Fallback: tell user
       showToast('Document download requires a direct backend route for hospitals. Check SETUP_GUIDE.', 'info');
       return;
     }
@@ -987,3 +963,224 @@ async function downloadHospitalPatientFile(treatmentId, type) {
     showToast(err.message, 'error');
   }
 }
+
+
+// ─── 3D INTERACTIVE PARTICLE SPHERE ──────────────────────────────────────────
+function initSplashParticles() {
+  const canvas = document.getElementById('splash-particles');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  let width, height, cx, cy;
+  let nodes = [];
+  const nodeCount = 150; 
+  const sphereRadius = 250;
+  const focalLength = 300; 
+
+  let currentScale = 2.8; 
+  let targetScale = 2.8;
+
+  window.shrinkSplashSphere = () => {
+    targetScale = 0.65; 
+  };
+
+  let mouseX = 0;
+  let mouseY = 0;
+  let targetRotationX = 0;
+  let targetRotationY = 0;
+  let rotationX = 0;
+  let rotationY = 0;
+
+  function resize() {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+    cx = width / 2;
+    cy = height / 2;
+  }
+
+  function createNodes() {
+    nodes = [];
+    const phi = Math.PI * (3 - Math.sqrt(5)); 
+    for (let i = 0; i < nodeCount; i++) {
+      const y = 1 - (i / (nodeCount - 1)) * 2; 
+      const radius = Math.sqrt(1 - y * y);
+      const theta = phi * i;
+
+      const x = Math.cos(theta) * radius;
+      const z = Math.sin(theta) * radius;
+
+      nodes.push({
+        x: x * sphereRadius,
+        y: y * sphereRadius,
+        z: z * sphereRadius,
+        baseX: x * sphereRadius,
+        baseY: y * sphereRadius,
+        baseZ: z * sphereRadius
+      });
+    }
+  }
+
+  window.addEventListener('mousemove', (e) => {
+    mouseX = (e.clientX - cx) / cx;
+    mouseY = (e.clientY - cy) / cy;
+    targetRotationY = mouseX * 1.5; 
+    targetRotationX = -mouseY * 1.5; 
+  });
+
+  function rotate3D(node, angleX, angleY) {
+    let cosX = Math.cos(angleX);
+    let sinX = Math.sin(angleX);
+    let y1 = node.y * cosX - node.z * sinX;
+    let z1 = node.z * cosX + node.y * sinX;
+
+    let cosY = Math.cos(angleY);
+    let sinY = Math.sin(angleY);
+    let x2 = node.x * cosY + z1 * sinY;
+    let z2 = z1 * cosY - node.x * sinY;
+
+    node.x = x2;
+    node.y = y1;
+    node.z = z2;
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, width, height);
+
+    currentScale += (targetScale - currentScale) * 0.04;
+
+    rotationX += (targetRotationX - rotationX) * 0.05;
+    rotationY += (targetRotationY - rotationY) * 0.05;
+    
+    rotationY += 0.008; 
+    rotationX += 0.002;
+
+    nodes.forEach((node, i) => {
+      node.x = node.baseX;
+      node.y = node.baseY;
+      node.z = node.baseZ;
+
+      rotate3D(node, rotationX, rotationY);
+
+      const basePerspective = focalLength / (focalLength + node.z);
+      const finalScale = basePerspective * currentScale; 
+      
+      const x2d = cx + node.x * finalScale;
+      const y2d = cy + node.y * finalScale;
+      const alpha = Math.max(0.05, basePerspective * 1.5 - 0.5); 
+
+      ctx.beginPath();
+      ctx.arc(x2d, y2d, 2.5 * finalScale, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(59, 130, 246, ${alpha})`; 
+      ctx.fill();
+
+      for (let j = i + 1; j < nodes.length; j++) {
+        const otherNode = nodes[j];
+        const dx = node.x - otherNode.x;
+        const dy = node.y - otherNode.y;
+        const dz = node.z - otherNode.z;
+        const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+        if (dist < 85) { 
+          const otherPerspective = focalLength / (focalLength + otherNode.z);
+          const otherFinalScale = otherPerspective * currentScale;
+          const otherX2d = cx + otherNode.x * otherFinalScale;
+          const otherY2d = cy + otherNode.y * otherFinalScale;
+          
+          ctx.beginPath();
+          ctx.moveTo(x2d, y2d);
+          ctx.lineTo(otherX2d, otherY2d);
+          ctx.strokeStyle = `rgba(56, 189, 248, ${alpha * 0.3})`;
+          ctx.lineWidth = 0.6 * finalScale;
+          ctx.stroke();
+        }
+      }
+    });
+    requestAnimationFrame(render);
+  }
+  resize();
+  createNodes();
+  window.addEventListener('resize', resize);
+  render();
+}
+
+// ─── SPLASH SCREEN LOGIC ──────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  initSplashParticles();
+
+  const delayedContent = document.getElementById('splash-delayed-content');
+  const getStartedBtn = document.getElementById('btn-get-started');
+  const splashScreen = document.getElementById('splash-screen');
+  
+  const pageLanding = document.getElementById('page-landing');
+  if (pageLanding) {
+    pageLanding.style.opacity = '0';
+    pageLanding.style.transform = 'scale(0.95)';
+    pageLanding.style.transition = 'opacity 0.8s ease, transform 0.8s ease';
+  }
+
+  setTimeout(() => {
+    if (delayedContent) delayedContent.classList.add('visible');
+    if (window.shrinkSplashSphere) window.shrinkSplashSphere();
+  }, 2000);
+
+  // Feature 3: Wrap button inner text in a span so we can animate it independently
+  if (getStartedBtn) {
+    // Preserve SVG arrow but wrap text node in a span
+    const btnNodes = Array.from(getStartedBtn.childNodes);
+    const textNodes = btnNodes.filter(n => n.nodeType === Node.TEXT_NODE || (n.nodeName !== 'SVG' && n.nodeName !== 'svg' && !n.classList?.contains('blob-btn__inner')));
+    const svgEl = getStartedBtn.querySelector('svg');
+    const innerEl = getStartedBtn.querySelector('.blob-btn__inner');
+
+    // Rebuild: [textSpan] [svg] [inner]
+    const textSpan = document.createElement('span');
+    textSpan.className = 'blob-btn__text';
+    textSpan.textContent = 'Get Started';
+
+    // Clear and rebuild
+    getStartedBtn.innerHTML = '';
+    getStartedBtn.appendChild(textSpan);
+    if (svgEl) {
+      svgEl.style.transition = 'opacity 0.28s ease, transform 0.28s ease';
+      getStartedBtn.appendChild(svgEl);
+    }
+    if (innerEl) getStartedBtn.appendChild(innerEl);
+  }
+
+  if (getStartedBtn) {
+    getStartedBtn.addEventListener('click', () => {
+
+      // Feature 3a: Heading + quote slide up
+      const splashTitle = document.querySelector('.splash-title');
+      const splashQuote = document.querySelector('.splash-quote');
+      if (splashTitle) splashTitle.classList.add('clicked');
+      if (splashQuote) splashQuote.classList.add('clicked');
+
+      // Feature 3b: Button text fades down, button morphs to circle
+      const textSpan = getStartedBtn.querySelector('.blob-btn__text');
+      const btnSvg   = getStartedBtn.querySelector('svg');
+      if (textSpan) { textSpan.style.opacity = '0'; textSpan.style.transform = 'translateY(12px)'; }
+      if (btnSvg)   { btnSvg.style.opacity   = '0'; btnSvg.style.transform   = 'translateY(12px)'; }
+
+      // Slight delay so text fade starts before shape change
+      setTimeout(() => {
+        getStartedBtn.classList.add('blob-btn--collapse');
+      }, 80);
+
+      // Feature 4: Gradient meshes shrink behind portal area
+      splashScreen.classList.add('clicked');
+
+      // Show landing page (original centered layout)
+      setTimeout(() => {
+        splashScreen.classList.add('slide-up');
+        if (pageLanding) {
+          pageLanding.style.opacity = '1';
+          pageLanding.style.transform = 'scale(1)';
+        }
+      }, 350);
+
+      setTimeout(() => {
+        splashScreen.style.display = 'none';
+      }, 1100);
+    });
+  }
+});
