@@ -10,7 +10,7 @@
     --surface3:  #1a1a1a;
     --border:    rgba(255,255,255,0.07);
     --border2:   rgba(255,255,255,0.14);
-    --text:      #f0f0f0;
+    --text:      #ffffff;
     --text2:     #6b6b6b;
     --text3:     #3a3a3a;
     --blue:      #3b82f6;
@@ -162,7 +162,7 @@
     gap: 8px; transition: opacity .2s, transform .15s; position: relative;
   }
   .btn-primary:disabled { opacity: .38; cursor: not-allowed; transform: none !important; }
-  .btn-primary.blue  { background: #2563eb; color: #2563eb; }
+  .btn-primary.blue  { background: #2563eb; color: #fff; }
   .btn-primary.blue:not(:disabled):hover  { background: #1d4ed8; }
   .btn-primary.green { background: #059669; color: #fff; }
   .btn-primary.green:not(:disabled):hover { background: #047857; }
@@ -275,7 +275,7 @@
     border-radius: 16px; overflow: hidden; margin-bottom: 22px;
   }
   .section-header { padding: 18px 22px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between; }
-  .section-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .section-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; color: #fff; }
   .section-title svg { width: 18px; height: 18px; }
   .section-body { padding: 22px; }
 
@@ -374,7 +374,7 @@
   }
   .modal::before { content: ''; position: absolute; top: 0; left: 20%; right: 20%; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); pointer-events: none; }
   .modal-header { padding: 20px 26px; border-bottom: 1px solid rgba(255,255,255,0.07); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: rgba(14,14,16,0.7); backdrop-filter: blur(20px); z-index: 10; }
-  .modal-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; }
+  .modal-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; color: #fff; }
   .modal-close { width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.05); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.08); color: var(--text2); cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; transition: all .2s; box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset; }
   .modal-close:hover { background: rgba(239,68,68,.15); border-color: rgba(239,68,68,.3); color: var(--red2); }
   .modal-body { padding: 26px; }
